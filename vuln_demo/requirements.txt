@@ -1,0 +1,56 @@
+# Core Framework
+Flask==2.0.1
+Werkzeug==2.0.1
+
+# ========== VULNERABLE DEPENDENCIES ==========
+
+# CVE-2020-1747: Arbitrary code execution via yaml.load
+pyyaml==5.3.1
+
+# CVE-2022-42969: ReDoS and potential RCE in py library
+py==1.11.0
+
+# CVE-2021-33503: ReDoS in urllib3
+urllib3==1.26.4
+
+# CVE-2022-24303: Path traversal in Pillow
+Pillow==9.0.0
+
+# CVE-2021-23727: Command injection in Celery
+celery==5.0.5
+
+# CVE-2019-14751: Path traversal in nltk
+nltk==3.4.4
+
+# CVE-2022-34749: Arbitrary code execution in mistune
+mistune==0.8.4
+
+# CVE-2021-28363: SSL certificate verification bypass in urllib3
+# (already included above)
+
+# CVE-2022-40897: ReDoS in setuptools
+setuptools==57.0.0
+
+# CVE-2020-28493: ReDoS in Jinja2
+Jinja2
+
+# CVE-2022-29155: SQL injection in ldap3
+ldap3==2.9
+
+# Database & ORM
+SQLAlchemy==1.4.0
+
+# Serialization
+dill==0.3.5  # Unsafe pickle module
+
+
+# Cryptography (weak algorithms)
+pycryptodome==3.9.9
+
+# HTTP requests
+requests==2.25.1
+
+# Markdown processing
+markdown==3.3.4
+
+pyjwt==2.3.0
