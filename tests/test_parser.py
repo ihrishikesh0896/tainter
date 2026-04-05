@@ -3,8 +3,10 @@
 import pytest
 from pathlib import Path
 
-from tainter.parser.file_finder import find_python_files, should_ignore_dir
+from tainter.core.types import Language
+from tainter.parser.file_finder import find_python_files, find_source_files, should_ignore_dir
 from tainter.parser.ast_parser import parse_file, infer_module_name
+from tainter.parser.java_parser import parse_java_file
 
 
 class TestFileFinder:
@@ -22,6 +24,17 @@ class TestFileFinder:
     
     def test_should_ignore_egg_info(self):
         assert should_ignore_dir("my_package.egg-info", frozenset({"*.egg-info"}))
+
+    def test_find_source_files_includes_java(self, tmp_path):
+        py_file = tmp_path / "app.py"
+        java_file = tmp_path / "App.java"
+        py_file.write_text("print('x')")
+        java_file.write_text("class App {}")
+
+        files = find_source_files(tmp_path)
+        discovered = {path.name for path in files.files}
+        assert "app.py" in discovered
+        assert "App.java" in discovered
 
 
 class TestASTParser:
@@ -67,3 +80,31 @@ class Greeter:
         assert len(module.classes) == 1
         assert module.classes[0].name == "Greeter"
         assert len(module.classes[0].methods) == 1
+
+    def test_parse_java_file(self, tmp_path):
+        code = """
+package com.example;
+
+import java.sql.Statement;
+
+public class UserService {
+    public String readUser(String userId) {
+        String query = "SELECT * FROM users WHERE id = " + userId;
+        stmt.executeQuery(query);
+        return query;
+    }
+}
+"""
+        test_file = tmp_path / "UserService.java"
+        test_file.write_text(code)
+
+        module = parse_java_file(test_file, tmp_path)
+
+        assert module.language == Language.JAVA
+        assert module.module_name == "com.example.UserService"
+        assert len(module.imports) == 1
+        assert len(module.classes) == 1
+        assert module.classes[0].name == "UserService"
+        assert len(module.classes[0].methods) == 1
+        assert module.classes[0].methods[0].name == "readUser"
+        assert len(module.all_calls) > 0

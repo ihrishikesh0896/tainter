@@ -8,18 +8,31 @@ complete flows from sources to sinks.
 import ast
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional, Iterator
+from typing import Optional
 
 from tainter.core.types import (
-    TaintFlow, TaintSource, TaintSink, Location, FlowStep,
-    VulnerabilityClass, Confidence, TaintState, AnalysisResult,
+    AnalysisResult,
+    Confidence,
+    Location,
+    TaintFlow,
+    TaintSink,
+    TaintSource,
+    TaintState,
 )
-from tainter.parser.ast_parser import ParsedModule, FunctionInfo, CallInfo
+from tainter.parser.ast_parser import FunctionInfo, ParsedModule
 from tainter.graph.call_graph import CallGraph, CallGraphBuilder
-from tainter.models.sources import SourceRegistry, create_default_registry as create_source_registry
-from tainter.models.sinks import SinkRegistry, create_default_registry as create_sink_registry
-from tainter.models.sanitizers import SanitizerRegistry, create_default_registry as create_sanitizer_registry
+from tainter.models.lang.python.sources import (
+    SourceRegistry,
+    create_default_registry as create_source_registry,
+)
+from tainter.models.lang.python.sinks import (
+    SinkRegistry,
+    create_default_registry as create_sink_registry,
+)
+from tainter.models.lang.python.sanitizers import (
+    SanitizerRegistry,
+    create_default_registry as create_sanitizer_registry,
+)
 from tainter.analysis.taint_tracker import TaintTracker, TaintContext
 
 
@@ -45,11 +58,26 @@ class FlowFinder:
         source_registry: Optional[SourceRegistry] = None,
         sink_registry: Optional[SinkRegistry] = None,
         sanitizer_registry: Optional[SanitizerRegistry] = None,
+        max_call_depth: int = 5,
     ):
         self.sources = source_registry or create_source_registry()
         self.sinks = sink_registry or create_sink_registry()
         self.sanitizers = sanitizer_registry or create_sanitizer_registry()
-        self.taint_tracker = TaintTracker(self.sources, self.sanitizers)
+        self.max_call_depth = max_call_depth
+
+        self.taint_tracker = TaintTracker(
+            self.sources,
+            self.sanitizers,
+            return_taint_provider=self._resolve_call_return_taint,
+        )
+
+        # Inter-procedural bookkeeping
+        self._function_index: dict[str, tuple[ParsedModule, FunctionInfo]] = {}
+        self._return_cache: dict[str, Optional[TaintState]] = {}
+        self._call_stack: list[str] = []
+        # Track attribute taint per class for cross-method analysis
+        # Key: class qualified name, Value: dict of "self.attr" -> TaintState
+        self._class_attribute_taint: dict[str, dict[str, TaintState]] = {}
     
     def analyze_project(
         self,
@@ -74,6 +102,18 @@ class FlowFinder:
             for module in modules:
                 builder.add_module(module)
             call_graph = builder.build()
+
+        # Reset all inter-procedural state for a fresh analysis run.
+        self._function_index.clear()
+        self._return_cache.clear()
+        self._call_stack.clear()
+        self._class_attribute_taint.clear()
+        for module in modules:
+            for func in module.functions:
+                self._function_index[func.qualified_name] = (module, func)
+            for cls in module.classes:
+                for method in cls.methods:
+                    self._function_index[method.qualified_name] = (module, method)
         
         result.files_analyzed = len(modules)
         
@@ -100,13 +140,55 @@ class FlowFinder:
             func_flows = self._analyze_function(func, module, call_graph)
             flows.extend(func_flows)
         
-        # Analyze class methods
+        # Analyze class methods with cross-method attribute tracking
         for cls in module.classes:
-            for method in cls.methods:
-                method_flows = self._analyze_function(method, module, call_graph)
-                flows.extend(method_flows)
+            class_qname = f"{module.module_name}.{cls.name}"
+            
+            # Initialize class attribute taint cache if not present
+            if class_qname not in self._class_attribute_taint:
+                self._class_attribute_taint[class_qname] = {}
+            
+            # Run multiple passes to propagate attribute taint across methods.
+            # First pass discovers attributes, second pass may find flows using them.
+            max_passes = 2
+            for pass_num in range(max_passes):
+                for method in cls.methods:
+                    # Get current class attribute taint to pass to the method
+                    class_attrs = self._class_attribute_taint[class_qname]
+                    
+                    method_flows, method_context = self._analyze_method(
+                        method, module, call_graph, class_attrs
+                    )
+                    
+                    # Only collect flows on the final pass
+                    if pass_num == max_passes - 1:
+                        flows.extend(method_flows)
+                    
+                    # Merge discovered attribute taints back to class level
+                    if method_context:
+                        for attr_key, taint_state in method_context.attributes.items():
+                            if taint_state.is_tainted:
+                                # Normalize to self.* keys (strip the receiver)
+                                if attr_key.startswith("self."):
+                                    self._class_attribute_taint[class_qname][attr_key] = taint_state
         
         return flows
+    
+    def _analyze_method(
+        self,
+        method: FunctionInfo,
+        module: ParsedModule,
+        call_graph: CallGraph,
+        class_attrs: dict[str, TaintState],
+    ) -> tuple[list[TaintFlow], Optional[TaintContext]]:
+        """Analyze a class method with attribute taint context."""
+        return self._analyze_callable(
+            method,
+            module,
+            call_graph,
+            attr_taints=class_attrs,
+            seed_default_params=self._should_seed_default_params(method, call_graph),
+        )
     
     def _analyze_function(
         self,
@@ -114,24 +196,241 @@ class FlowFinder:
         module: ParsedModule,
         call_graph: CallGraph,
     ) -> list[TaintFlow]:
-        """Analyze a function for source-to-sink flows."""
-        flows: list[TaintFlow] = []
-        
-        if not func.body_ast:
-            return flows
-        
-        # Run taint tracking
-        context = self.taint_tracker.analyze_function(func, module)
-        
-        # Find sinks and check if they receive tainted data
-        if isinstance(func.body_ast, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            for stmt in ast.walk(func.body_ast):
-                if isinstance(stmt, ast.Call):
-                    flow = self._check_call_for_sink(stmt, context, module, func, call_graph)
-                    if flow:
-                        flows.append(flow)
-        
+        """Analyze a function for source-to-sink flows (inter-procedural aware)."""
+        flows, _ = self._analyze_callable(
+            func,
+            module,
+            call_graph,
+            seed_default_params=self._should_seed_default_params(func, call_graph),
+        )
         return flows
+
+    def _analyze_callable(
+        self,
+        func: FunctionInfo,
+        module: ParsedModule,
+        call_graph: CallGraph,
+        param_taints: Optional[dict[str, TaintState]] = None,
+        attr_taints: Optional[dict[str, TaintState]] = None,
+        seed_default_params: bool = True,
+    ) -> tuple[list[TaintFlow], Optional[TaintContext]]:
+        """Analyze a function or method body under an optional incoming taint context."""
+        flows: list[TaintFlow] = []
+
+        if not func.body_ast:
+            return flows, None
+
+        self._call_stack.append(func.qualified_name)
+        try:
+            context, return_taint = self.taint_tracker.analyze_function(
+                func,
+                module,
+                param_taints=param_taints,
+                attr_taints=attr_taints,
+                seed_default_params=seed_default_params,
+            )
+
+            # Cache only the default summary for the function. Context-sensitive analyses
+            # are caller-specific and should not poison the shared cache.
+            if (
+                param_taints is None
+                and attr_taints is None
+                and return_taint
+                and return_taint.is_tainted
+            ):
+                self._return_cache[func.qualified_name] = return_taint
+
+            if isinstance(func.body_ast, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for stmt in ast.walk(func.body_ast):
+                    if isinstance(stmt, ast.Call):
+                        flows.extend(
+                            self._analyze_call_site(stmt, context, module, func, call_graph)
+                        )
+
+            return flows, context
+        finally:
+            self._call_stack.pop()
+
+    def _should_seed_default_params(
+        self,
+        func: FunctionInfo,
+        call_graph: CallGraph,
+    ) -> bool:
+        """Treat parameters as external input only for unresolved entrypoints."""
+        return not call_graph.get_callers(func.qualified_name)
+
+    def _analyze_call_site(
+        self,
+        call: ast.Call,
+        context: TaintContext,
+        module: ParsedModule,
+        func: FunctionInfo,
+        call_graph: CallGraph,
+    ) -> list[TaintFlow]:
+        """Analyze a call for both direct sinks and nested project calls."""
+        flows: list[TaintFlow] = []
+
+        sink_flow = self._check_call_for_sink(call, context, module, func)
+        if sink_flow:
+            flows.append(sink_flow)
+
+        flows.extend(self._analyze_nested_call(call, context, module, call_graph))
+        return flows
+
+    def _analyze_nested_call(
+        self,
+        call: ast.Call,
+        context: TaintContext,
+        module: ParsedModule,
+        call_graph: CallGraph,
+    ) -> list[TaintFlow]:
+        """Propagate taint into a project-local callee and collect any nested sinks."""
+        callee_qname = self._resolve_callee_name(call, module)
+        if not callee_qname or callee_qname in self._call_stack:
+            return []
+        if len(self._call_stack) >= self.max_call_depth:
+            return []
+
+        target = self._function_index.get(callee_qname)
+        if not target:
+            return []
+
+        callee_module, callee_func = target
+        param_taints = self._map_args_to_params(call, context, callee_func, module, call.lineno)
+        if not param_taints:
+            return []
+
+        attr_taints: Optional[dict[str, TaintState]] = None
+        if callee_func.is_method:
+            class_qname = callee_qname.rsplit(".", 1)[0]
+            attr_taints = self._class_attribute_taint.get(class_qname)
+
+        flows, callee_context = self._analyze_callable(
+            callee_func,
+            callee_module,
+            call_graph,
+            param_taints=param_taints,
+            attr_taints=attr_taints,
+            seed_default_params=False,
+        )
+
+        if callee_func.is_method and callee_context:
+            class_qname = callee_qname.rsplit(".", 1)[0]
+            class_attrs = self._class_attribute_taint.setdefault(class_qname, {})
+            for attr_key, taint_state in callee_context.attributes.items():
+                if attr_key.startswith("self.") and taint_state.is_tainted:
+                    class_attrs[attr_key] = taint_state.copy()
+
+        return flows
+
+    # -------------------------------------------------------------
+    # Inter-procedural helpers
+    # -------------------------------------------------------------
+    def _resolve_call_return_taint(
+        self,
+        call: ast.Call,
+        context: TaintContext,
+        module: ParsedModule,
+        line: int,
+    ) -> Optional[TaintState]:
+        """Resolve the taint on a callee's return value, if known."""
+        callee_qname = self._resolve_callee_name(call, module)
+        if not callee_qname:
+            return None
+
+        # Avoid runaway recursion.
+        if callee_qname in self._call_stack:
+            return None
+
+        if len(self._call_stack) >= self.max_call_depth:
+            return None
+
+        target = self._function_index.get(callee_qname)
+        if not target:
+            return None
+
+        callee_module, callee_func = target
+        param_taints = self._map_args_to_params(call, context, callee_func, module, line)
+        use_cache = not param_taints
+
+        # Reuse cached summary only for context-free lookups.
+        if use_cache and callee_qname in self._return_cache:
+            return self._return_cache[callee_qname]
+
+        # Analyze callee with argument taints to get a precise return taint.
+        self._call_stack.append(callee_qname)
+        _, callee_return = self.taint_tracker.analyze_function(
+            callee_func,
+            callee_module,
+            param_taints=param_taints,
+            seed_default_params=False,
+        )
+        self._call_stack.pop()
+
+        if callee_return and callee_return.is_tainted:
+            if use_cache:
+                self._return_cache[callee_qname] = callee_return
+            return callee_return
+
+        if use_cache:
+            self._return_cache[callee_qname] = None
+        return None
+
+    def _resolve_callee_name(self, call: ast.Call, module: ParsedModule) -> Optional[str]:
+        """Best-effort resolution of a call to a qualified function name."""
+        # Direct name call
+        if isinstance(call.func, ast.Name):
+            func_name = call.func.id
+            local_name = f"{module.module_name}.{func_name}"
+            if local_name in self._function_index:
+                return local_name
+
+            imp = module.resolve_import(func_name)
+            if imp:
+                return imp.full_name
+
+        # Attribute call (receiver.method)
+        elif isinstance(call.func, ast.Attribute):
+            attr = call.func.attr
+            receiver = call.func.value
+            # Walk down to the base name (handles both simple and chained receivers)
+            base = receiver
+            while isinstance(base, ast.Attribute):
+                base = base.value
+            if isinstance(base, ast.Name):
+                imp = module.resolve_import(base.id)
+                if imp:
+                    return f"{imp.full_name}.{attr}"
+
+        return None
+
+    def _map_args_to_params(
+        self,
+        call: ast.Call,
+        context: TaintContext,
+        callee_func: FunctionInfo,
+        caller_module: ParsedModule,
+        line: int,
+    ) -> dict[str, TaintState]:
+        """Build a parameter->taint map for a callee based on call args."""
+        param_taints: dict[str, TaintState] = {}
+
+        # Positional arguments
+        for idx, arg in enumerate(call.args):
+            if idx < len(callee_func.parameters):
+                taint = self._get_arg_taint(arg, context, caller_module)
+                if taint and taint.is_tainted:
+                    param_taints[callee_func.parameters[idx].name] = taint.copy()
+
+        # Keyword arguments
+        for kw in call.keywords:
+            for param in callee_func.parameters:
+                if param.name == kw.arg:
+                    taint = self._get_arg_taint(kw.value, context, caller_module)
+                    if taint and taint.is_tainted:
+                        param_taints[param.name] = taint.copy()
+
+        return param_taints
     
     def _check_call_for_sink(
         self,
@@ -139,7 +438,6 @@ class FlowFinder:
         context: TaintContext,
         module: ParsedModule,
         func: FunctionInfo,
-        call_graph: CallGraph,
     ) -> Optional[TaintFlow]:
         """Check if a call is a sink receiving tainted data."""
         # Identify the sink
@@ -191,13 +489,36 @@ class FlowFinder:
                                 func=func,
                             )
 
+            # Fall back to keyword arguments when the vulnerable parameter is supplied by name.
+            for kw in call.keywords:
+                kw_taint = self._get_arg_taint(kw.value, context, module)
+                if kw_taint and kw_taint.is_tainted:
+                    if kw_taint.is_tainted_for(sink.vulnerability_class):
+                        return self._create_flow(
+                            source=kw_taint.source,
+                            source_taint=kw_taint,
+                            sink=sink,
+                            sink_call=call,
+                            module=module,
+                            func=func,
+                        )
+
         return None
 
     def _identify_sink(self, call: ast.Call, module: ParsedModule) -> Optional[TaintSink]:
         """Identify if a call matches a known sink."""
         if isinstance(call.func, ast.Name):
             func_name = call.func.id
-            for sink in self.sinks.all_sinks():
+            # Alias resolution: `from subprocess import run as r` → r() matches subprocess.run
+            imp = module.resolve_import(func_name)
+            if imp and imp.name:
+                for sink in self.sinks.get_by_module(imp.module):
+                    if sink.module == imp.module and sink.function == imp.name:
+                        return sink
+                return None
+
+            # Bare names only match builtins; otherwise local helpers get misclassified.
+            for sink in self.sinks.get_by_module("builtins"):
                 if sink.function == func_name:
                     return sink
         elif isinstance(call.func, ast.Attribute):
@@ -287,6 +608,15 @@ class FlowFinder:
         """Get taint state for a call argument."""
         if isinstance(arg, ast.Name):
             return context.get_taint(arg.id)
+        elif isinstance(arg, ast.Attribute):
+            # Check for attribute taint (e.g., self.data)
+            if isinstance(arg.value, ast.Name):
+                receiver = arg.value.id
+                attr_taint = context.get_attribute_taint(receiver, arg.attr)
+                if attr_taint:
+                    return attr_taint
+            # Fall back to checking if base is tainted
+            return self._get_arg_taint(arg.value, context, module)
         elif isinstance(arg, ast.JoinedStr):
             # f-string - check all formatted values
             for value in arg.values:
@@ -335,7 +665,7 @@ class FlowFinder:
         )
         
         # Build call chain and variable path
-        call_chain = [func.qualified_name]
+        call_chain = list(self._call_stack) if self._call_stack else [func.qualified_name]
         variable_path = [step.variable for step in source_taint.propagation_path]
         
         # Determine confidence

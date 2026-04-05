@@ -1,4 +1,4 @@
-"""Console reporter with rich formatting."""
+"""Console reporter with ANSI formatting."""
 
 from typing import Optional, TextIO
 import sys
@@ -50,13 +50,24 @@ class ConsoleReporter:
         # Header
         out.write("\n")
         out.write(self._color("═" * 60, Colors.CYAN) + "\n")
-        out.write(self._color("  TAINTER - Python Taint Analysis Results", Colors.BOLD) + "\n")
+        out.write(self._color("  TAINTER - Taint Analysis Results", Colors.BOLD) + "\n")
         out.write(self._color("═" * 60, Colors.CYAN) + "\n\n")
         
         # Summary
         out.write(self._color("📊 Summary\n", Colors.BOLD))
         out.write(f"   Files analyzed: {result.files_analyzed}\n")
         out.write(f"   Functions analyzed: {result.functions_analyzed}\n")
+        if result.extension_counts:
+            counts = ", ".join(
+                f"{ext}:{count}" for ext, count in sorted(result.extension_counts.items())
+            )
+            out.write(f"   Source file counts: {counts}\n")
+        if result.active_analyzers:
+            active = ", ".join(result.active_analyzers)
+            out.write(f"   Active analyzers: {active}\n")
+        if result.detected_languages:
+            detected = ", ".join(result.detected_languages)
+            out.write(f"   Detected languages: {detected}\n")
         
         if result.flows:
             out.write(self._color(f"   Flows detected: {len(result.flows)}\n", Colors.RED))
@@ -87,6 +98,10 @@ class ConsoleReporter:
             if self.verbose:
                 for error in result.errors:
                     out.write(f"   - {error}\n")
+        if result.warnings:
+            out.write(self._color(f"\n⚠️  {len(result.warnings)} warnings\n", Colors.YELLOW))
+            for warning in result.warnings:
+                out.write(f"   - {warning}\n")
     
     def _print_flow(self, flow: TaintFlow, out: TextIO) -> None:
         """Print a single flow."""

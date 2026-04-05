@@ -9,7 +9,9 @@ from typing import Optional
 import click
 
 from tainter.engine import TainterEngine, EngineConfig
-from tainter.core.types import VulnerabilityClass
+from tainter.core.types import Language, VulnerabilityClass
+from tainter.parser.java_parser import JavaParser
+from tainter.parser.python_parser import PythonParser
 from tainter.reporters.console_reporter import ConsoleReporter
 from tainter.reporters.json_reporter import JSONReporter
 from tainter.reporters.sarif_reporter import SARIFReporter
@@ -25,13 +27,21 @@ VULN_CLASS_MAP = {
     "xss": VulnerabilityClass.XSS,
 }
 
+LANGUAGE_MAP = {
+    "python": Language.PYTHON,
+    "java": Language.JAVA,
+    "javascript": Language.JAVASCRIPT,
+    "js": Language.JAVASCRIPT,
+    "go": Language.GO,
+}
+
 
 @click.group()
 @click.version_option(version="0.1.0", prog_name="tainter")
 def main():
-    """Tainter - Python Taint Analysis Engine
+    """Tainter - Multi-language Taint Analysis Engine
     
-    Detect source-to-sink vulnerability flows in Python code.
+    Detect source-to-sink vulnerability flows in source code.
     """
     pass
 
@@ -62,6 +72,12 @@ def main():
     help="Include test files in analysis"
 )
 @click.option(
+    "--language", "-l",
+    multiple=True,
+    type=click.Choice(list(LANGUAGE_MAP.keys())),
+    help="Languages to analyze (default: all supported)"
+)
+@click.option(
     "--verbose/--quiet", "-V/-q",
     default=False,
     help="Verbose output"
@@ -78,12 +94,13 @@ def scan(
     output: Optional[str],
     vuln_class: tuple[str, ...],
     include_tests: bool,
+    language: tuple[str, ...],
     verbose: bool,
     max_files: int,
 ):
-    """Scan a Python project for vulnerability flows.
+    """Scan a project for vulnerability flows.
     
-    PATH is the root directory of the Python project to scan.
+    PATH is the root directory of the project to scan.
     """
     project_path = Path(path).resolve()
     
@@ -91,11 +108,16 @@ def scan(
     vuln_classes = None
     if vuln_class:
         vuln_classes = {VULN_CLASS_MAP[vc] for vc in vuln_class}
+
+    languages = None
+    if language:
+        languages = frozenset(LANGUAGE_MAP[lang] for lang in language)
     
     config = EngineConfig(
         vuln_classes=vuln_classes,
         include_tests=include_tests,
         max_files=max_files,
+        languages=languages,
     )
     
     # Run analysis
@@ -135,14 +157,16 @@ def scan(
 @click.argument("file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
 @click.option("--verbose/--quiet", "-V/-q", default=False)
 def parse(file: str, verbose: bool):
-    """Parse a single Python file and show structure.
+    """Parse a single source file and show structure.
     
     Useful for debugging and understanding what Tainter extracts.
     """
-    from tainter.parser.ast_parser import parse_file
-    
     file_path = Path(file)
-    module = parse_file(file_path)
+    parsers = (PythonParser(), JavaParser())
+    parser = next((p for p in parsers if p.can_parse(file_path)), None)
+    if not parser:
+        raise click.ClickException(f"Unsupported file type: {file_path.suffix}")
+    module = parser.parse_file(file_path)
     
     click.echo(f"\n📄 {file_path.name}")
     click.echo(f"   Module: {module.module_name}")
@@ -172,7 +196,7 @@ def parse(file: str, verbose: bool):
 @main.command()
 def list_sources():
     """List all built-in taint sources."""
-    from tainter.models.sources import get_all_sources
+    from tainter.models.lang.python.sources import get_all_sources
     
     sources = get_all_sources()
     by_framework: dict[str, list] = {}
@@ -191,7 +215,7 @@ def list_sources():
 @main.command()
 def list_sinks():
     """List all built-in taint sinks."""
-    from tainter.models.sinks import get_all_sinks
+    from tainter.models.lang.python.sinks import get_all_sinks
     
     sinks = get_all_sinks()
     by_class: dict[VulnerabilityClass, list] = {}

@@ -1,8 +1,8 @@
 """
-File discovery for Python projects.
+File discovery for source code projects.
 
-Finds all Python files in a project while respecting common ignore patterns
-like virtual environments, __pycache__, and build directories.
+Finds source files in a project while respecting common ignore patterns
+like virtual environments, __pycache__, build directories, and Java build output.
 """
 
 import os
@@ -47,6 +47,9 @@ DEFAULT_IGNORE_FILES: frozenset[str] = frozenset({
     "conftest.py",  # pytest specific
 })
 
+# Default source file extensions
+DEFAULT_SOURCE_EXTENSIONS: tuple[str, ...] = (".py", ".java", ".js", ".go")
+
 # Maximum number of files to process (safety limit)
 MAX_FILES_DEFAULT: int = 10000
 
@@ -54,11 +57,11 @@ MAX_FILES_DEFAULT: int = 10000
 @dataclass
 class ProjectFiles:
     """
-    Collection of Python files found in a project.
+    Collection of source files found in a project.
     
     Attributes:
         root: The project root directory
-        files: List of Python file paths (absolute)
+        files: List of source file paths (absolute)
         ignored_dirs: Directories that were skipped
         error_paths: Paths that caused errors during discovery
     """
@@ -70,7 +73,7 @@ class ProjectFiles:
     
     @property
     def file_count(self) -> int:
-        """Number of Python files found."""
+        """Number of source files found."""
         return len(self.files)
     
     def relative_path(self, file: Path) -> Path:
@@ -108,28 +111,30 @@ def should_ignore_dir(dir_name: str, ignore_patterns: frozenset[str]) -> bool:
     return False
 
 
-def find_python_files(
+def find_source_files(
     project_path: Path | str,
+    file_extensions: tuple[str, ...] = DEFAULT_SOURCE_EXTENSIONS,
     ignore_dirs: frozenset[str] | None = None,
     ignore_files: frozenset[str] | None = None,
     max_files: int = MAX_FILES_DEFAULT,
     follow_symlinks: bool = False,
 ) -> ProjectFiles:
     """
-    Find all Python files in a project directory.
+    Find all source files in a project directory.
     
-    Recursively scans the project directory for .py files while respecting
+    Recursively scans the project directory for supported file extensions while respecting
     ignore patterns. Includes safety limits to prevent resource exhaustion.
     
     Args:
         project_path: Root directory to scan
+        file_extensions: File suffixes to include (e.g., (".py", ".java"))
         ignore_dirs: Additional directories to ignore (merged with defaults)
         ignore_files: Additional files to ignore (merged with defaults)
         max_files: Maximum number of files to return (safety limit)
         follow_symlinks: Whether to follow symbolic links (disabled by default for security)
         
     Returns:
-        ProjectFiles containing all discovered Python files
+        ProjectFiles containing all discovered source files
         
     Raises:
         ValueError: If project_path doesn't exist or isn't a directory
@@ -154,7 +159,7 @@ def find_python_files(
     file_count = 0
     
     def scan_directory(current_dir: Path) -> None:
-        """Recursively scan a directory for Python files."""
+        """Recursively scan a directory for source files."""
         nonlocal file_count
         
         if file_count >= max_files:
@@ -182,8 +187,8 @@ def find_python_files(
                                 dirs_to_recurse.append(Path(entry.path))
                         
                         elif entry.is_file(follow_symlinks=follow_symlinks):
-                            # Check for Python files
-                            if entry.name.endswith(".py"):
+                            # Check for supported source files
+                            if entry.name.endswith(file_extensions):
                                 if entry.name not in all_ignore_files:
                                     result.files.append(Path(entry.path))
                                     file_count += 1
@@ -202,8 +207,28 @@ def find_python_files(
     
     # Sort files for consistent ordering
     result.files.sort()
-    
+
     return result
+
+
+def find_python_files(
+    project_path: Path | str,
+    ignore_dirs: frozenset[str] | None = None,
+    ignore_files: frozenset[str] | None = None,
+    max_files: int = MAX_FILES_DEFAULT,
+    follow_symlinks: bool = False,
+) -> ProjectFiles:
+    """
+    Backward-compatible helper for Python-only discovery.
+    """
+    return find_source_files(
+        project_path=project_path,
+        file_extensions=(".py",),
+        ignore_dirs=ignore_dirs,
+        ignore_files=ignore_files,
+        max_files=max_files,
+        follow_symlinks=follow_symlinks,
+    )
 
 
 def is_test_file(file_path: Path) -> bool:

@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+.eggs/
+
+# Build / packaging
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Type checking
+.mypy_cache/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Tool caches
+.claude/
+.ruff_cache/
+
+# Report output files
+*.json
+!**/fixtures/**/*.json
+
+# Secrets / sensitive files
+*secret*
+*_secret*
+secret_*
