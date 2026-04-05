@@ -1,6 +1,7 @@
 """Core types and data structures for the taint analysis engine."""
 
 from tainter.core.types import (
+    Language,
     Location,
     FlowStep,
     TaintSource,
@@ -13,6 +14,7 @@ from tainter.core.types import (
 )
 
 __all__ = [
+    "Language",
     "Location",
     "FlowStep",
     "TaintSource",

@@ -1,13 +1,17 @@
 # 🔍 Tainter
 
-A Python taint analysis engine for identifying **source → sink** vulnerability flows in real-world codebases.
+A taint analysis engine for identifying **source → sink** vulnerability flows in real-world codebases.
 
 ## Features
 
 - **Inter-procedural analysis**: Track taint across function boundaries and multiple files
+- **Multi-language parsing**: Parse Python and Java source trees
+- **Language auto-selection**: Count `py/java/js/go` files and activate analyzers from project composition
 - **Framework-aware**: Built-in support for Flask, Django, FastAPI, and CLI applications
 - **Extensible models**: Define custom sources, sinks, and sanitizers
-- **Rich reporting**: JSON and SARIF output with detailed flow explanations
+- **Multiple reporters**: Console, JSON, and SARIF output with flow explanations
+
+Current status: Python and Java taint-flow detection are wired. JavaScript and Go are counted for auto-selection but analyzer implementations are not wired yet.
 
 ## Vulnerability Classes
 
@@ -43,7 +47,13 @@ pip install -e ".[dev]"
 tainter scan /path/to/project
 
 # Scan with specific vulnerability focus
-tainter scan /path/to/project --vuln-class sqli,rce
+tainter scan /path/to/project --vuln-class sqli --vuln-class rce
+
+# Scan only Java files
+tainter scan /path/to/project --language java
+
+# Scan only JavaScript/Go inventory (will report no active analyzer yet)
+tainter scan /path/to/project --language js --language go
 
 # Output in SARIF format
 tainter scan /path/to/project --format sarif -o results.sarif
@@ -99,30 +109,13 @@ Tainter is built with separation of concerns:
 - **Parser**: AST-based Python parsing
 - **Graph Builder**: Call graph and data flow graph construction
 - **Models**: Extensible source/sink/sanitizer definitions
-- **Analyzer**: Taint propagation with path sensitivity
+- **Analyzer**: Taint propagation with inter-procedural flow tracking and basic branch handling
 - **Reporter**: Multiple output formats
 
 ## Configuration
 
-Create a `tainter.yaml` in your project root:
-
-```yaml
-sources:
-  - module: "myapp.utils"
-    function: "get_user_input"
-    returns: tainted
-
-sinks:
-  - module: "myapp.db"
-    function: "raw_query"
-    parameters: [0]
-    vulnerability: sqli
-
-sanitizers:
-  - module: "myapp.security"
-    function: "escape_sql"
-    clears: sqli
-```
+Built-in sources, sinks, and sanitizers are available by default.
+Project-local model configuration is not implemented yet.
 
 ## License
 

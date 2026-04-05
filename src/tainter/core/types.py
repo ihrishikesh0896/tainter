@@ -15,6 +15,15 @@ from pathlib import Path
 from typing import Optional
 
 
+class Language(Enum):
+    """Supported programming languages."""
+
+    PYTHON = "python"
+    JAVA = "java"
+    JAVASCRIPT = "javascript"
+    GO = "go"
+
+
 class VulnerabilityClass(Enum):
     """Categories of vulnerabilities that can be detected."""
     
@@ -388,6 +397,10 @@ class AnalysisResult:
     files_analyzed: int = 0
     functions_analyzed: int = 0
     errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    extension_counts: dict[str, int] = field(default_factory=dict)
+    active_analyzers: list[str] = field(default_factory=list)
+    detected_languages: list[str] = field(default_factory=list)
     duration_seconds: float = 0.0
     
     @property
@@ -411,8 +424,13 @@ class AnalysisResult:
                 "files_analyzed": self.files_analyzed,
                 "functions_analyzed": self.functions_analyzed,
                 "errors": len(self.errors),
+                "warnings": len(self.warnings),
+                "extension_counts": self.extension_counts,
+                "detected_languages": self.detected_languages,
+                "active_analyzers": self.active_analyzers,
                 "duration_seconds": self.duration_seconds,
             },
             "flows": [flow.to_dict() for flow in self.flows],
             "errors": self.errors,
+            "warnings": self.warnings,
         }

@@ -1,21 +1,22 @@
 """
 Taint models: sources, sinks, and sanitizers.
 
-This module provides built-in definitions for common frameworks
-and allows extensibility for custom models.
+Language-specific definitions live under lang/python/ and lang/java/.
+Shared registry classes live in registry.py.
 """
 
-from tainter.models.sources import (
+from tainter.models.registry import SourceRegistry, SinkRegistry, SanitizerRegistry
+
+from tainter.models.lang.python.sources import (
     FLASK_SOURCES,
     DJANGO_SOURCES,
     FASTAPI_SOURCES,
     CLI_SOURCES,
     BUILTIN_SOURCES,
     get_all_sources,
-    SourceRegistry,
 )
 
-from tainter.models.sinks import (
+from tainter.models.lang.python.sinks import (
     SQL_SINKS,
     RCE_SINKS,
     SSTI_SINKS,
@@ -23,14 +24,12 @@ from tainter.models.sinks import (
     DESERIALIZE_SINKS,
     PATH_TRAVERSAL_SINKS,
     get_all_sinks,
-    SinkRegistry,
 )
 
-from tainter.models.sanitizers import (
+from tainter.models.lang.python.sanitizers import (
     SQL_SANITIZERS,
     GENERAL_SANITIZERS,
     get_all_sanitizers,
-    SanitizerRegistry,
 )
 
 __all__ = [

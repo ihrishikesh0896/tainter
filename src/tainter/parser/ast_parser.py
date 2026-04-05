@@ -8,7 +8,9 @@ building call graphs and performing taint analysis.
 import ast
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Iterator
+from typing import Any, Optional, Iterator
+
+from tainter.core.types import Language
 
 
 @dataclass
@@ -89,7 +91,7 @@ class FunctionInfo:
     parameters: list[ParameterInfo] = field(default_factory=list)
     return_annotation: Optional[str] = None
     decorators: list[str] = field(default_factory=list)
-    body_ast: Optional[ast.AST] = field(default=None, repr=False)
+    body_ast: Optional[Any] = field(default=None, repr=False)
     line_start: int = 0
     line_end: int = 0
     is_method: bool = False
@@ -181,7 +183,7 @@ class AssignmentInfo:
     
     targets: list[str] = field(default_factory=list)
     value_expr: str = ""
-    value_ast: Optional[ast.AST] = field(default=None, repr=False)
+    value_ast: Optional[Any] = field(default=None, repr=False)
     line: int = 0
     is_augmented: bool = False
 
@@ -212,7 +214,8 @@ class ParsedModule:
     all_calls: list[CallInfo] = field(default_factory=list)
     parse_errors: list[str] = field(default_factory=list)
     source_lines: list[str] = field(default_factory=list, repr=False)
-    _ast: Optional[ast.Module] = field(default=None, repr=False)
+    language: Language = Language.PYTHON
+    _ast: Optional[Any] = field(default=None, repr=False)
     
     def get_function(self, name: str) -> Optional[FunctionInfo]:
         """Get a top-level function by name."""

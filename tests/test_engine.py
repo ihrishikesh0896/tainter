@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 
 from tainter.engine import TainterEngine, EngineConfig
-from tainter.core.types import VulnerabilityClass
+from tainter.core.types import Language, VulnerabilityClass
 
 
 class TestTainterEngine:
@@ -63,6 +63,90 @@ class TestTainterEngine:
         sqli_flows = [f for f in result.flows if f.vulnerability_class == VulnerabilityClass.SQLI]
         # Should detect the SQL injection vulnerability
         assert len(sqli_flows) >= 0  # Actual detection depends on analysis depth
+
+    def test_analyze_mixed_python_java_project(self, tmp_path):
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "app.py").write_text(
+            "from flask import request\n\n"
+            "def f():\n"
+            "    x = request.args.get('x')\n"
+            "    return x\n"
+        )
+        (project / "UserService.java").write_text(
+            "package com.example;\n\n"
+            "public class UserService {\n"
+            "    public String readUser(String userId) {\n"
+            "        return userId;\n"
+            "    }\n"
+            "}\n"
+        )
+
+        engine = TainterEngine(EngineConfig(include_tests=True))
+        result = engine.analyze(project)
+
+        assert result.files_analyzed == 2
+        assert not result.errors
+        languages = {module.language for module in engine.modules}
+        assert languages == {Language.PYTHON, Language.JAVA}
+
+    def test_language_filter_java_only(self, tmp_path):
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "app.py").write_text("def f():\n    return 1\n")
+        (project / "UserService.java").write_text("class UserService {}")
+
+        config = EngineConfig(include_tests=True, languages=frozenset({Language.JAVA}))
+        engine = TainterEngine(config)
+        result = engine.analyze(project)
+
+        assert result.files_analyzed == 1
+        assert all(module.language == Language.JAVA for module in engine.modules)
+
+    def test_auto_selects_analyzer_from_extension_counts(self, tmp_path):
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "a.py").write_text("def a():\n    return 1\n")
+        (project / "b.py").write_text("def b():\n    return 2\n")
+        (project / "main.go").write_text("package main\nfunc main() {}\n")
+
+        engine = TainterEngine(EngineConfig(include_tests=True))
+        result = engine.analyze(project)
+
+        assert result.extension_counts["py"] == 2
+        assert result.extension_counts["go"] == 1
+        assert result.active_analyzers == ["python"]
+        assert "python" in result.detected_languages
+        assert "go" in result.detected_languages
+        assert any("no analyzer is implemented" in w for w in result.warnings)
+
+    def test_auto_selects_java_analyzer_when_only_java_present(self, tmp_path):
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "UserService.java").write_text("class UserService {}")
+
+        engine = TainterEngine(EngineConfig(include_tests=True))
+        result = engine.analyze(project)
+
+        assert result.extension_counts["java"] == 1
+        assert result.active_analyzers == ["java"]
+        assert result.files_analyzed == 1
+        assert all(module.language == Language.JAVA for module in engine.modules)
+
+    def test_no_active_analyzer_for_js_and_go_only(self, tmp_path):
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "index.js").write_text("console.log('hi');\n")
+        (project / "main.go").write_text("package main\nfunc main() {}\n")
+
+        engine = TainterEngine(EngineConfig(include_tests=True))
+        result = engine.analyze(project)
+
+        assert result.extension_counts["js"] == 1
+        assert result.extension_counts["go"] == 1
+        assert result.active_analyzers == []
+        assert result.files_analyzed == 0
+        assert any("No active analyzers selected" in w for w in result.warnings)
 
 
 class TestModels:

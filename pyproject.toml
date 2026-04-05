@@ -4,13 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tainter"
-version = "0.1.0"
-description = "A Python taint analysis engine for identifying source-to-sink vulnerability flows"
+version = "1.0.1"
+description = "A taint analysis engine for identifying source-to-sink vulnerability flows"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "Tainter Team" }
+    { name = "Hrishikesh Nate", email = "ihrishikeshnate@gmail.com" }
+]
+maintainers = [
+    { name = "Hrishikesh Nate", email = "ihrishikeshnate@gmail.com" }
 ]
 keywords = ["security", "static-analysis", "taint-analysis", "vulnerability", "sast"]
 classifiers = [
@@ -28,10 +31,18 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.0.0",
-    "rich>=13.0.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/ihrishikesh0896/tainter"
+Repository = "https://github.com/ihrishikesh0896/tainter"
+"Bug Tracker" = "https://github.com/ihrishikesh0896/tainter/issues"
+
 [project.optional-dependencies]
+java = [
+    "tree-sitter>=0.21.0",
+    "tree-sitter-java>=0.21.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
