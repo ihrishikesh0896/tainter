@@ -145,3 +145,46 @@ def test_js_parser_extracts_imports(tmp_path):
     assert "express" in modules
     assert "fs" in modules
     assert "axios" in modules
+
+
+def test_go_parser_extracts_functions_and_calls(tmp_path):
+    from tainter.parser.go_parser import GoParser
+    go = """package handler
+
+import (
+    "database/sql"
+    "net/http"
+)
+
+func GetUser(w http.ResponseWriter, r *http.Request) {
+    id := r.URL.Query().Get("id")
+    db.Query(id)
+}
+"""
+    path = tmp_path / "handler.go"
+    path.write_text(go)
+    parser = GoParser()
+    module = parser.parse_file(path)
+    assert module.language == Language.GO
+    assert len(module.functions) >= 1
+    assert any(f.name == "GetUser" for f in module.functions)
+    calls = module.all_calls
+    assert any(c.callee == "Query" for c in calls)
+
+
+def test_go_parser_extracts_imports(tmp_path):
+    from tainter.parser.go_parser import GoParser
+    go = """package main
+
+import (
+    "fmt"
+    "net/http"
+)
+"""
+    path = tmp_path / "main.go"
+    path.write_text(go)
+    parser = GoParser()
+    module = parser.parse_file(path)
+    modules = [imp.module for imp in module.imports]
+    assert "fmt" in modules
+    assert "net/http" in modules
