@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from tainter.core.types import (
@@ -14,11 +14,11 @@ from tainter.core.types import (
     Confidence,
     FlowStep,
     Location,
+    Sanitizer,
     TaintFlow,
     TaintSink,
     TaintSource,
     TaintState,
-    VulnerabilityClass,
 )
 from tainter.models.registry import SanitizerRegistry, SinkRegistry, SourceRegistry
 from tainter.parser.ast_parser import CallInfo, FunctionInfo, ParsedModule
@@ -101,7 +101,7 @@ class BaseFlowFinder(ABC):
         """Return a matching TaintSink for the given call, else None."""
 
     @abstractmethod
-    def _identify_sanitizer(self, module: ParsedModule, expr: str):
+    def _identify_sanitizer(self, module: ParsedModule, expr: str) -> Optional[Sanitizer]:
         """Return a matching Sanitizer if expr contains a sanitizer call, else None."""
 
     # ------------------------------------------------------------------
