@@ -1,4 +1,3 @@
-# src/tainter/parser/go_parser.py
 """Go language parser implementation."""
 
 from __future__ import annotations
@@ -40,6 +39,12 @@ _GO_METHOD_RE = re.compile(
 # call expressions: receiver.Method( or pkg.Func(
 _GO_CALL_RE = re.compile(r"([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\(")
 
+# grouped import block start
+_GO_IMPORT_BLOCK_START_RE = re.compile(r"^\s*import\s*\(")
+
+# grouped import block end
+_GO_IMPORT_BLOCK_END_RE = re.compile(r"^\s*\)")
+
 _GO_KEYWORDS = {
     "if", "for", "range", "switch", "select", "case", "return", "go",
     "defer", "break", "continue", "fallthrough", "default", "else",
@@ -50,12 +55,6 @@ _GO_KEYWORDS = {
 
 
 def _parse_go_parameters(param_blob: str) -> list[ParameterInfo]:
-    """Parse Go function parameters from a signature string.
-
-    Go allows grouped parameters like `(a, b int, c string)`.
-    We extract simple `name type` pairs, handling the grouped form by
-    assigning incrementing positions.
-    """
     params: list[ParameterInfo] = []
     if not param_blob.strip():
         return params
@@ -158,12 +157,12 @@ def parse_go_file(
             continue
 
         # Grouped import block start
-        if re.match(r"^\s*import\s*\(", line):
+        if _GO_IMPORT_BLOCK_START_RE.match(line):
             in_import_block = True
             continue
 
         # Grouped import block end
-        if in_import_block and re.match(r"^\s*\)", line):
+        if in_import_block and _GO_IMPORT_BLOCK_END_RE.match(line):
             in_import_block = False
             continue
 
@@ -212,10 +211,6 @@ def parse_go_file(
         # Regular function (no receiver)
         func_match = _GO_FUNC_RE.match(line)
         if func_match and "{" in line:
-            # Make sure it's not a method (would have been caught above, but
-            # also skip if the line contains a receiver pattern)
-            if _GO_METHOD_RE.match(line):
-                continue
             func_name = func_match.group(1)
             param_blob = func_match.group(2)
             if func_name in _GO_KEYWORDS:
@@ -251,8 +246,8 @@ class GoParser(LanguageParser):
     def can_parse(self, file_path: Path) -> bool:
         return file_path.suffix == ".go"
 
-    def file_extensions(self) -> frozenset[str]:
-        return frozenset({".go"})
+    def file_extensions(self) -> tuple[str, ...]:
+        return (".go",)
 
     def parse_file(
         self, file_path: Path, project_root: Optional[Path] = None
