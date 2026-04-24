@@ -144,9 +144,8 @@ class TestTainterEngine:
 
         assert result.extension_counts["js"] == 1
         assert result.extension_counts["go"] == 1
-        assert result.active_analyzers == []
-        assert result.files_analyzed == 0
-        assert any("No active analyzers selected" in w for w in result.warnings)
+        assert "javascript" in result.active_analyzers
+        assert result.files_analyzed >= 1
 
 
 class TestModels:
