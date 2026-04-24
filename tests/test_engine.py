@@ -90,6 +90,63 @@ class TestTainterEngine:
         languages = {module.language for module in engine.modules}
         assert languages == {Language.PYTHON, Language.JAVA}
 
+    def test_analyze_mixed_four_language_project(self, tmp_path):
+        project = tmp_path / "project"
+        project.mkdir()
+
+        # Python: Flask route with SQLi
+        (project / "app.py").write_text(
+            "from flask import request\n"
+            "import sqlite3\n\n"
+            "def search():\n"
+            "    q = request.args.get('q')\n"
+            "    sqlite3.connect('db').execute(q)\n"
+        )
+
+        # Java: method with param
+        (project / "UserService.java").write_text(
+            "package com.example;\n\n"
+            "public class UserService {\n"
+            "    public String getUser(String userId) {\n"
+            "        return userId;\n"
+            "    }\n"
+            "}\n"
+        )
+
+        # JavaScript: Express SQLi
+        (project / "server.js").write_text(
+            "const express = require('express');\n"
+            "const app = express();\n\n"
+            "app.get('/user', (req, res) => {\n"
+            "    const id = req.query.id;\n"
+            "    db.query(id);\n"
+            "});\n"
+        )
+
+        # Go: net/http SQLi
+        (project / "handler.go").write_text(
+            "package handler\n\n"
+            "import (\n"
+            "    \"database/sql\"\n"
+            "    \"net/http\"\n"
+            ")\n\n"
+            "func GetUser(w http.ResponseWriter, r *http.Request) {\n"
+            "    id := r.FormValue(\"id\")\n"
+            "    db.Query(id)\n"
+            "}\n"
+        )
+
+        engine = TainterEngine(EngineConfig(include_tests=True))
+        result = engine.analyze(project)
+
+        assert result.files_analyzed == 4
+        languages = {module.language for module in engine.modules}
+        assert Language.PYTHON in languages
+        assert Language.JAVA in languages
+        assert Language.JAVASCRIPT in languages
+        assert Language.GO in languages
+        assert not result.errors
+
     def test_language_filter_java_only(self, tmp_path):
         project = tmp_path / "project"
         project.mkdir()
