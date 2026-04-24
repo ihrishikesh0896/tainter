@@ -71,11 +71,14 @@ def _parse_go_parameters(param_blob: str) -> list[ParameterInfo]:
         # take the first token as the name if there are two+ tokens.
         if len(tokens) >= 2:
             name = tokens[0].lstrip("*").strip()
+            # Join remaining tokens as the type annotation
+            annotation: Optional[str] = " ".join(tokens[1:])
         else:
             # Single token — likely a type-only param; use positional placeholder
             name = f"_p{position}"
+            annotation = tokens[0] if tokens else None
         if name and re.match(r"[A-Za-z_]\w*", name):
-            params.append(ParameterInfo(name=name, position=position))
+            params.append(ParameterInfo(name=name, annotation=annotation, position=position))
         position += 1
     return params
 

@@ -115,10 +115,11 @@ class TestTainterEngine:
 
         assert result.extension_counts["py"] == 2
         assert result.extension_counts["go"] == 1
-        assert result.active_analyzers == ["python"]
+        # Python has more files so it ranks first; Go is also active now
+        assert "python" in result.active_analyzers
+        assert "go" in result.active_analyzers
         assert "python" in result.detected_languages
         assert "go" in result.detected_languages
-        assert any("no analyzer is implemented" in w for w in result.warnings)
 
     def test_auto_selects_java_analyzer_when_only_java_present(self, tmp_path):
         project = tmp_path / "project"
