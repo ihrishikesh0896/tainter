@@ -34,6 +34,9 @@ _JS_NAMED_FUNC_RE = re.compile(
 _JS_ARROW_FUNC_RE = re.compile(
     r"""^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>"""
 )
+_JS_ARROW_SINGLE_RE = re.compile(
+    r"""^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(\w+)\s*=>"""
+)
 _JS_FUNC_EXPR_RE = re.compile(
     r"""^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?function\s*\*?\s*\w*\s*\(([^)]*)\)"""
 )
@@ -176,14 +179,17 @@ def parse_javascript_file(
             cls.methods.append(method)
             all_calls.extend(_extract_calls(source_lines, idx, method_end))
 
+    function_line_ranges: set[int] = set()
     for idx, line in enumerate(source_lines, start=1):
-        if idx in class_line_ranges:
+        if idx in class_line_ranges or idx in function_line_ranges:
             continue
+        matched = False
         for pattern in (_JS_NAMED_FUNC_RE, _JS_ARROW_FUNC_RE, _JS_FUNC_EXPR_RE):
             m = pattern.match(line)
             if m:
                 func_name = m.group(1)
                 if func_name in _JS_KEYWORDS:
+                    matched = True
                     break
                 func_end = _find_block_end(source_lines, idx - 1)
                 func = FunctionInfo(
@@ -197,7 +203,28 @@ def parse_javascript_file(
                 )
                 functions.append(func)
                 all_calls.extend(_extract_calls(source_lines, idx, func_end))
+                function_line_ranges.update(range(idx, func_end + 1))
+                matched = True
                 break
+        if matched:
+            continue
+        m = _JS_ARROW_SINGLE_RE.match(line)
+        if m:
+            func_name = m.group(1)
+            if func_name not in _JS_KEYWORDS:
+                func_end = _find_block_end(source_lines, idx - 1)
+                func = FunctionInfo(
+                    name=func_name,
+                    qualified_name=f"{fallback_module}.{func_name}",
+                    parameters=[ParameterInfo(name=m.group(2), position=0)],
+                    line_start=idx,
+                    line_end=func_end,
+                    is_method=False,
+                    body_ast=None,
+                )
+                functions.append(func)
+                all_calls.extend(_extract_calls(source_lines, idx, func_end))
+                function_line_ranges.update(range(idx, func_end + 1))
 
     return ParsedModule(
         file_path=file_path,
