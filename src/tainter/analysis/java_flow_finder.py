@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from tainter.analysis.base_flow_finder import BaseFlowFinder, CallSite
+from tainter.analysis.base_flow_finder import BaseFlowFinder
 from tainter.core.types import Location, Sanitizer, TaintSink, TaintSource, TaintState
 from tainter.models.lang.java.sanitizers import create_java_sanitizer_registry
 from tainter.models.lang.java.sinks import create_java_sink_registry
