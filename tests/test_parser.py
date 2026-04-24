@@ -108,3 +108,40 @@ public class UserService {
         assert len(module.classes[0].methods) == 1
         assert module.classes[0].methods[0].name == "readUser"
         assert len(module.all_calls) > 0
+
+
+def test_js_parser_extracts_function_and_calls(tmp_path):
+    from tainter.parser.javascript_parser import JavaScriptParser
+    js = tmp_path / "app.js"
+    js.write_text(
+        "const express = require('express');\n"
+        "\n"
+        "async function handler(req, res) {\n"
+        "    const userId = req.query.id;\n"
+        "    db.query(userId);\n"
+        "    res.send('ok');\n"
+        "}\n"
+    )
+    parser = JavaScriptParser()
+    module = parser.parse_file(js)
+    assert len(module.functions) >= 1
+    fn = module.functions[0]
+    assert fn.name == "handler"
+    assert len(fn.parameters) == 2
+    assert any(c.callee == "query" for c in module.all_calls)
+
+
+def test_js_parser_extracts_imports(tmp_path):
+    from tainter.parser.javascript_parser import JavaScriptParser
+    js = tmp_path / "app.js"
+    js.write_text(
+        "import express from 'express';\n"
+        "import { readFile } from 'fs';\n"
+        "const axios = require('axios');\n"
+    )
+    parser = JavaScriptParser()
+    module = parser.parse_file(js)
+    modules = [imp.module for imp in module.imports]
+    assert "express" in modules
+    assert "fs" in modules
+    assert "axios" in modules
