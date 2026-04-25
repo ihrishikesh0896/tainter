@@ -1,6 +1,7 @@
 """SARIF reporter for analysis results."""
 
 import json
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Optional, TextIO
 from tainter.core.types import AnalysisResult, TaintFlow, Confidence
@@ -8,13 +9,13 @@ from tainter.core.types import AnalysisResult, TaintFlow, Confidence
 
 class SARIFReporter:
     """Outputs analysis results in SARIF format for IDE/CI integration."""
-    
+
     SARIF_VERSION = "2.1.0"
     SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
-    
-    def __init__(self, tool_name: str = "Tainter", tool_version: str = "0.1.0"):
+
+    def __init__(self, tool_name: str = "Tainter", tool_version: Optional[str] = None):
         self.tool_name = tool_name
-        self.tool_version = tool_version
+        self.tool_version = tool_version or _pkg_version("tainter")
     
     def report(
         self,

@@ -50,6 +50,12 @@ _JS_KEYWORDS = {
     "await", "yield", "delete", "void", "in", "of",
 }
 
+# Matches inline arrow callbacks passed as arguments: (req, res) => {
+# Anchored to a comma or opening paren to avoid matching named assignments
+_JS_INLINE_ARROW_RE = re.compile(
+    r"[,(]\s*(?:async\s+)?\(([^)]*)\)\s*=>\s*\{"
+)
+
 
 def _parse_js_parameters(param_blob: str) -> list[ParameterInfo]:
     params: list[ParameterInfo] = []
@@ -225,6 +231,32 @@ def parse_javascript_file(
                 functions.append(func)
                 all_calls.extend(_extract_calls(source_lines, idx, func_end))
                 function_line_ranges.update(range(idx, func_end + 1))
+
+    # Second pass: detect inline arrow callbacks passed as arguments, e.g.
+    #   app.post('/path', (req, res) => {
+    # These are not captured by name-based patterns above.
+    _inline_callback_counter = 0
+    for idx, line in enumerate(source_lines, start=1):
+        if idx in class_line_ranges or idx in function_line_ranges:
+            continue
+        for cb_match in _JS_INLINE_ARROW_RE.finditer(line):
+            func_end = _find_block_end(source_lines, idx - 1)
+            _inline_callback_counter += 1
+            cb_name = f"_callback_{idx}_{_inline_callback_counter}"
+            func = FunctionInfo(
+                name=cb_name,
+                qualified_name=f"{fallback_module}.{cb_name}",
+                parameters=_parse_js_parameters(cb_match.group(1)),
+                line_start=idx,
+                line_end=func_end,
+                is_method=False,
+                body_ast=None,
+            )
+            functions.append(func)
+            all_calls.extend(_extract_calls(source_lines, idx, func_end))
+            function_line_ranges.update(range(idx, func_end + 1))
+            # Only capture the first callback on a given line to avoid nesting issues
+            break
 
     return ParsedModule(
         file_path=file_path,
