@@ -108,3 +108,83 @@ public class UserService {
         assert len(module.classes[0].methods) == 1
         assert module.classes[0].methods[0].name == "readUser"
         assert len(module.all_calls) > 0
+
+
+def test_js_parser_extracts_function_and_calls(tmp_path):
+    from tainter.parser.javascript_parser import JavaScriptParser
+    js = tmp_path / "app.js"
+    js.write_text(
+        "const express = require('express');\n"
+        "\n"
+        "async function handler(req, res) {\n"
+        "    const userId = req.query.id;\n"
+        "    db.query(userId);\n"
+        "    res.send('ok');\n"
+        "}\n"
+    )
+    parser = JavaScriptParser()
+    module = parser.parse_file(js)
+    assert len(module.functions) >= 1
+    fn = module.functions[0]
+    assert fn.name == "handler"
+    assert len(fn.parameters) == 2
+    assert any(c.callee == "query" for c in module.all_calls)
+
+
+def test_js_parser_extracts_imports(tmp_path):
+    from tainter.parser.javascript_parser import JavaScriptParser
+    js = tmp_path / "app.js"
+    js.write_text(
+        "import express from 'express';\n"
+        "import { readFile } from 'fs';\n"
+        "const axios = require('axios');\n"
+    )
+    parser = JavaScriptParser()
+    module = parser.parse_file(js)
+    modules = [imp.module for imp in module.imports]
+    assert "express" in modules
+    assert "fs" in modules
+    assert "axios" in modules
+
+
+def test_go_parser_extracts_functions_and_calls(tmp_path):
+    from tainter.parser.go_parser import GoParser
+    go = """package handler
+
+import (
+    "database/sql"
+    "net/http"
+)
+
+func GetUser(w http.ResponseWriter, r *http.Request) {
+    id := r.URL.Query().Get("id")
+    db.Query(id)
+}
+"""
+    path = tmp_path / "handler.go"
+    path.write_text(go)
+    parser = GoParser()
+    module = parser.parse_file(path)
+    assert module.language == Language.GO
+    assert len(module.functions) >= 1
+    assert any(f.name == "GetUser" for f in module.functions)
+    calls = module.all_calls
+    assert any(c.callee == "Query" for c in calls)
+
+
+def test_go_parser_extracts_imports(tmp_path):
+    from tainter.parser.go_parser import GoParser
+    go = """package main
+
+import (
+    "fmt"
+    "net/http"
+)
+"""
+    path = tmp_path / "main.go"
+    path.write_text(go)
+    parser = GoParser()
+    module = parser.parse_file(path)
+    modules = [imp.module for imp in module.imports]
+    assert "fmt" in modules
+    assert "net/http" in modules

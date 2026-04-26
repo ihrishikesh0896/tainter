@@ -37,7 +37,7 @@ LANGUAGE_MAP = {
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="tainter")
+@click.version_option(package_name="tainter", prog_name="tainter")
 def main():
     """Tainter - Multi-language Taint Analysis Engine
     

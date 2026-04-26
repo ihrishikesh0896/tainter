@@ -15,9 +15,13 @@ from tainter.parser.ast_parser import ParsedModule
 from tainter.parser.base import LanguageParser
 from tainter.parser.python_parser import PythonParser
 from tainter.parser.java_parser import JavaParser
+from tainter.parser.javascript_parser import JavaScriptParser
+from tainter.parser.go_parser import GoParser
 from tainter.graph.call_graph import CallGraph, CallGraphBuilder
 from tainter.analysis.flow_finder import FlowFinder
 from tainter.analysis.java_flow_finder import JavaFlowFinder
+from tainter.analysis.javascript_flow_finder import JavaScriptFlowFinder
+from tainter.analysis.go_flow_finder import GoFlowFinder
 from tainter.models.lang.python.sources import (
     SourceRegistry,
     create_default_registry as create_source_registry,
@@ -88,6 +92,8 @@ class TainterEngine:
         self._parsers: dict[Language, LanguageParser] = {
             Language.PYTHON: PythonParser(),
             Language.JAVA: JavaParser(),
+            Language.JAVASCRIPT: JavaScriptParser(),
+            Language.GO: GoParser(),
         }
         
         self._modules: list[ParsedModule] = []
@@ -129,6 +135,8 @@ class TainterEngine:
             # Phase 3: Build call graph
             python_modules = [m for m in self._modules if m.language == Language.PYTHON]
             java_modules = [m for m in self._modules if m.language == Language.JAVA]
+            js_modules = [m for m in self._modules if m.language == Language.JAVASCRIPT]
+            go_modules = [m for m in self._modules if m.language == Language.GO]
             self._call_graph = self._build_call_graph(python_modules)
 
             # Phase 4: Find flows
@@ -148,7 +156,19 @@ class TainterEngine:
                 java_result = java_finder.analyze_project(java_modules)
                 result.flows.extend(java_result.flows)
                 result.functions_analyzed += java_result.functions_analyzed
-            
+
+            if js_modules and Language.JAVASCRIPT in selected_parsers:
+                js_finder = JavaScriptFlowFinder(max_call_depth=self.config.max_call_depth)
+                js_result = js_finder.analyze_project(js_modules)
+                result.flows.extend(js_result.flows)
+                result.functions_analyzed += js_result.functions_analyzed
+
+            if go_modules and Language.GO in selected_parsers:
+                go_finder = GoFlowFinder(max_call_depth=self.config.max_call_depth)
+                go_result = go_finder.analyze_project(go_modules)
+                result.flows.extend(go_result.flows)
+                result.functions_analyzed += go_result.functions_analyzed
+
             # Filter by vulnerability class if configured
             if self.config.vuln_classes:
                 result.flows = [
