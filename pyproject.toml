@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tainter"
-version = "1.0.1"
+version = "1.0.2"
 description = "A taint analysis engine for identifying source-to-sink vulnerability flows"
 readme = "README.md"
 license = "MIT"
