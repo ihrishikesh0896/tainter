@@ -1,48 +1,17 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg
-*.egg-info/
-.eggs/
-
-# Build / packaging
-dist/
-build/
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Type checking
-.mypy_cache/
-
-# Testing
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-
-# Editors / IDEs
-.idea/
-.vscode/
+labs/*
+.claude/*
+.agent/*
+.idea/*
+.vscode/*
+.pytest_cache/*
+__pycache__/*
+.venv/*
+*.log
+*.tmp
+*.bak
 *.swp
-*.swo
-
-# macOS
-.DS_Store
-
-# Tool caches
-.claude/
-.ruff_cache/
-
-# Report output files
+.DS_Stored
+dist/*
+build/*
+*.egg-info/*
 *.json
-!**/fixtures/**/*.json
-
-# Secrets / sensitive files
-*secret*
-*_secret*
-secret_*

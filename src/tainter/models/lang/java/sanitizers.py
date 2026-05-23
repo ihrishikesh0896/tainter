@@ -2,7 +2,7 @@
 Java sanitizer definitions.
 
 Sanitizers are functions or patterns that make tainted data safe.
-Covers prepared statements, encoding libraries, and type coercion.
+Covers prepared statements, encoding libraries, path normalization, and type coercion.
 """
 
 from tainter.core.types import Sanitizer, VulnerabilityClass
@@ -80,12 +80,17 @@ JAVA_PATH_SANITIZERS: tuple[Sanitizer, ...] = (
     Sanitizer(
         module="java.nio.file", function="Path.normalize",
         clears=(VulnerabilityClass.PATH_TRAVERSAL,),
-        description="Path normalization",
+        description="Path normalization removes .. sequences",
     ),
     Sanitizer(
         module="java.io", function="File.getCanonicalPath",
         clears=(VulnerabilityClass.PATH_TRAVERSAL,),
         description="Canonical path resolution",
+    ),
+    Sanitizer(
+        module="java.io", function="File.getCanonicalFile",
+        clears=(VulnerabilityClass.PATH_TRAVERSAL,),
+        description="Canonical file resolution",
     ),
 )
 

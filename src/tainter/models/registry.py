@@ -37,8 +37,7 @@ class SourceRegistry:
             key = f"{module}.{function}.{attribute}"
             if key in self._sources:
                 return self._sources[key]
-        key = f"{module}.{function}"
-        return self._sources.get(key)
+        return self._sources.get(f"{module}.{function}")
 
     def all_sources(self) -> list[TaintSource]:
         return list(self._sources.values())

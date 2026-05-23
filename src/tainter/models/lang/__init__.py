@@ -1,2 +1,1 @@
-"""Language-scoped taint model packages."""
-
+"""Language-specific taint models."""

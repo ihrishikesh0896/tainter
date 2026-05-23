@@ -55,4 +55,3 @@ __all__ = [
     "create_java_sanitizer_registry",
     "get_all_java_sanitizers",
 ]
-

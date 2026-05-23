@@ -37,11 +37,11 @@ LANGUAGE_MAP = {
 
 
 @click.group()
-@click.version_option(package_name="tainter", prog_name="tainter")
+@click.version_option(version="1.0.1", prog_name="tainter")
 def main():
-    """Tainter - Multi-language Taint Analysis Engine
-    
-    Detect source-to-sink vulnerability flows in source code.
+    """Tainter - Multi-Language Taint Analysis Engine
+
+    Detect source-to-sink vulnerability flows in Python and Java code.
     """
     pass
 
@@ -75,7 +75,7 @@ def main():
     "--language", "-l",
     multiple=True,
     type=click.Choice(list(LANGUAGE_MAP.keys())),
-    help="Languages to analyze (default: all supported)"
+    help="Languages to analyze (default: auto-detect from file extensions)"
 )
 @click.option(
     "--verbose/--quiet", "-V/-q",
@@ -99,12 +99,12 @@ def scan(
     max_files: int,
 ):
     """Scan a project for vulnerability flows.
-    
+
     PATH is the root directory of the project to scan.
+    Supports Python and Java (Spring Boot) out of the box.
     """
     project_path = Path(path).resolve()
-    
-    # Build configuration
+
     vuln_classes = None
     if vuln_class:
         vuln_classes = {VULN_CLASS_MAP[vc] for vc in vuln_class}
@@ -112,22 +112,23 @@ def scan(
     languages = None
     if language:
         languages = frozenset(LANGUAGE_MAP[lang] for lang in language)
-    
+
     config = EngineConfig(
         vuln_classes=vuln_classes,
         include_tests=include_tests,
         max_files=max_files,
         languages=languages,
     )
-    
-    # Run analysis
+
     if verbose:
-        click.echo(f"🔍 Scanning {project_path}...")
-    
+        click.echo(f"Scanning {project_path}...")
+
     engine = TainterEngine(config)
     result = engine.analyze(project_path)
-    
-    # Generate report
+
+    if verbose and result.active_analyzers:
+        click.echo(f"Active analyzers: {', '.join(result.active_analyzers)}")
+
     if format == "console":
         reporter = ConsoleReporter(use_colors=True, verbose=verbose)
         reporter.report(result)
@@ -136,7 +137,7 @@ def scan(
         if output:
             reporter.report(result, output_path=Path(output))
             if verbose:
-                click.echo(f"📄 Report written to {output}")
+                click.echo(f"Report written to {output}")
         else:
             click.echo(reporter.report(result))
     elif format == "sarif":
@@ -144,11 +145,10 @@ def scan(
         if output:
             reporter.report(result, output_path=Path(output))
             if verbose:
-                click.echo(f"📄 Report written to {output}")
+                click.echo(f"Report written to {output}")
         else:
             click.echo(reporter.report(result))
-    
-    # Exit with error code if flows found
+
     if result.flows:
         sys.exit(1)
 
@@ -158,7 +158,8 @@ def scan(
 @click.option("--verbose/--quiet", "-V/-q", default=False)
 def parse(file: str, verbose: bool):
     """Parse a single source file and show structure.
-    
+
+    Supports .py and .java files.
     Useful for debugging and understanding what Tainter extracts.
     """
     file_path = Path(file)
@@ -167,44 +168,57 @@ def parse(file: str, verbose: bool):
     if not parser:
         raise click.ClickException(f"Unsupported file type: {file_path.suffix}")
     module = parser.parse_file(file_path)
-    
-    click.echo(f"\n📄 {file_path.name}")
+
+    click.echo(f"\n{file_path.name}")
+    click.echo(f"   Language: {module.language.value}")
     click.echo(f"   Module: {module.module_name}")
     click.echo(f"   Imports: {len(module.imports)}")
     click.echo(f"   Functions: {len(module.functions)}")
     click.echo(f"   Classes: {len(module.classes)}")
     click.echo(f"   Calls: {len(module.all_calls)}")
-    
+
     if verbose:
         if module.functions:
             click.echo("\n   Functions:")
             for func in module.functions:
                 params = ", ".join(func.parameter_names)
                 click.echo(f"      - {func.name}({params})")
-        
+
         if module.classes:
             click.echo("\n   Classes:")
             for cls in module.classes:
                 click.echo(f"      - {cls.name}")
                 for method in cls.methods:
                     click.echo(f"         .{method.name}()")
-    
+
     if module.parse_errors:
-        click.echo(f"\n   ⚠️  Parse errors: {module.parse_errors}")
+        click.echo(f"\n   Parse errors: {module.parse_errors}")
 
 
 @main.command()
-def list_sources():
+@click.option(
+    "--language", "-l",
+    type=click.Choice(["python", "java", "all"]),
+    default="all",
+    help="Filter by language (default: all)"
+)
+def list_sources(language: str):
     """List all built-in taint sources."""
-    from tainter.models.lang.python.sources import get_all_sources
-    
-    sources = get_all_sources()
+    sources = []
+
+    if language in {"python", "all"}:
+        from tainter.models.lang.python.sources import get_all_sources as get_python_sources
+        sources.extend(get_python_sources())
+
+    if language in {"java", "all"}:
+        from tainter.models.lang.java.sources import get_all_java_sources
+        sources.extend(get_all_java_sources())
+
     by_framework: dict[str, list] = {}
-    
     for source in sources:
         key = source.framework or "stdlib"
         by_framework.setdefault(key, []).append(source)
-    
+
     for framework, srcs in sorted(by_framework.items()):
         click.echo(f"\n{framework.upper()}")
         click.echo("-" * 40)
@@ -213,16 +227,28 @@ def list_sources():
 
 
 @main.command()
-def list_sinks():
+@click.option(
+    "--language", "-l",
+    type=click.Choice(["python", "java", "all"]),
+    default="all",
+    help="Filter by language (default: all)"
+)
+def list_sinks(language: str):
     """List all built-in taint sinks."""
-    from tainter.models.lang.python.sinks import get_all_sinks
-    
-    sinks = get_all_sinks()
+    sinks = []
+
+    if language in {"python", "all"}:
+        from tainter.models.lang.python.sinks import get_all_sinks as get_python_sinks
+        sinks.extend(get_python_sinks())
+
+    if language in {"java", "all"}:
+        from tainter.models.lang.java.sinks import get_all_java_sinks
+        sinks.extend(get_all_java_sinks())
+
     by_class: dict[VulnerabilityClass, list] = {}
-    
     for sink in sinks:
         by_class.setdefault(sink.vulnerability_class, []).append(sink)
-    
+
     for vuln_class, snks in sorted(by_class.items(), key=lambda x: x[0].name):
         click.echo(f"\n{vuln_class.name}")
         click.echo("-" * 40)

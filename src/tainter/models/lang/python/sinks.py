@@ -1,11 +1,12 @@
 """
-Taint sink definitions.
+Python taint sink definitions.
 
 Sinks are dangerous operations where tainted data can cause harm.
 """
 
 from tainter.core.types import TaintSink, VulnerabilityClass
 from tainter.models.registry import SinkRegistry
+
 
 SQL_SINKS: tuple[TaintSink, ...] = (
     TaintSink(module="sqlite3", function="Cursor.execute", vulnerable_parameters=(0,),
@@ -39,12 +40,7 @@ SQL_SINKS: tuple[TaintSink, ...] = (
     TaintSink(module="django.db", function="RawSQL", vulnerable_parameters=(0,),
               vulnerability_class=VulnerabilityClass.SQLI),
     TaintSink(module="django.db.models", function="raw", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.SQLI,
-              description="Django ORM Manager.raw() — executes a raw SQL query"),
-    # extra(where=[...]) is another Django ORM raw-SQL escape hatch
-    TaintSink(module="django.db.models", function="extra", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.SQLI,
-              description="Django ORM QuerySet.extra() — injects raw SQL into WHERE/SELECT"),
+              vulnerability_class=VulnerabilityClass.SQLI),
     TaintSink(module="peewee", function="Database.execute_sql", vulnerable_parameters=(0,),
               vulnerability_class=VulnerabilityClass.SQLI),
 )
@@ -159,17 +155,6 @@ SSRF_SINKS: tuple[TaintSink, ...] = (
               vulnerability_class=VulnerabilityClass.SSRF),
     TaintSink(module="aiohttp", function="ClientSession.request", vulnerable_parameters=(1,),
               vulnerability_class=VulnerabilityClass.SSRF),
-    # httpx async client
-    TaintSink(module="httpx", function="AsyncClient.get", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.SSRF),
-    TaintSink(module="httpx", function="AsyncClient.post", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.SSRF),
-    TaintSink(module="httpx", function="AsyncClient.put", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.SSRF),
-    TaintSink(module="httpx", function="AsyncClient.delete", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.SSRF),
-    TaintSink(module="httpx", function="AsyncClient.request", vulnerable_parameters=(1,),
-              vulnerability_class=VulnerabilityClass.SSRF),
 )
 
 DESERIALIZE_SINKS: tuple[TaintSink, ...] = (
@@ -242,28 +227,6 @@ PATH_TRAVERSAL_SINKS: tuple[TaintSink, ...] = (
               vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL),
     TaintSink(module="pathlib", function="Path.rmdir", vulnerable_parameters=(0,),
               vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL),
-    TaintSink(module="pathlib", function="Path.open", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL),
-    TaintSink(module="pathlib", function="Path.rename", vulnerable_parameters=(0, 1),
-              vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL),
-    TaintSink(module="pathlib", function="Path.mkdir", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL),
-    # io.open is an alias for builtins.open but imported separately
-    TaintSink(module="io", function="open", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL),
-    TaintSink(module="os", function="open", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL,
-              description="Low-level os.open() with user-controlled path"),
-    TaintSink(module="os", function="stat", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL,
-              description="File info disclosure via stat()"),
-    TaintSink(module="os", function="lstat", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL),
-    TaintSink(module="os", function="scandir", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL),
-    TaintSink(module="tempfile", function="NamedTemporaryFile", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL,
-              description="NamedTemporaryFile with user-controlled dir/prefix"),
 )
 
 LDAP_INJECTION_SINKS: tuple[TaintSink, ...] = (
@@ -286,7 +249,7 @@ HEADER_INJECTION_SINKS: tuple[TaintSink, ...] = (
               vulnerability_class=VulnerabilityClass.HEADER_INJECTION),
 )
 
-XXEIS_SINKS: tuple[TaintSink, ...] = (
+XXE_SINKS: tuple[TaintSink, ...] = (
     TaintSink(module="xml.etree.ElementTree", function="parse", vulnerable_parameters=(0,),
               vulnerability_class=VulnerabilityClass.XXE,
               description="XML External Entity injection"),
@@ -302,80 +265,16 @@ XXEIS_SINKS: tuple[TaintSink, ...] = (
               vulnerability_class=VulnerabilityClass.XXE),
 )
 
-XPATH_INJECTION_SINKS: tuple[TaintSink, ...] = (
-    TaintSink(module="lxml.etree", function="xpath", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.XPATH,
-              description="lxml XPath injection via user-controlled expression"),
-    TaintSink(module="lxml.etree", function="XPath", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.XPATH,
-              description="lxml compiled XPath injection"),
-    TaintSink(module="lxml.etree", function="ElementBase.xpath", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.XPATH),
-    TaintSink(module="xml.etree.ElementTree", function="Element.find", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.XPATH,
-              description="ElementTree find() with user-controlled XPath"),
-    TaintSink(module="xml.etree.ElementTree", function="Element.findall", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.XPATH),
-    TaintSink(module="xml.etree.ElementTree", function="Element.findtext", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.XPATH),
-)
-
-LOG_INJECTION_SINKS: tuple[TaintSink, ...] = (
-    TaintSink(module="logging", function="debug", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION,
-              description="Log injection via debug message"),
-    TaintSink(module="logging", function="info", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION,
-              description="Log injection via info message"),
-    TaintSink(module="logging", function="warning", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION,
-              description="Log injection via warning message"),
-    TaintSink(module="logging", function="error", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION,
-              description="Log injection via error message"),
-    TaintSink(module="logging", function="critical", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION,
-              description="Log injection via critical message"),
-    TaintSink(module="logging", function="exception", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION,
-              description="Log injection via exception message"),
-    TaintSink(module="logging", function="log", vulnerable_parameters=(1,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION,
-              description="Log injection via log() message argument"),
-    TaintSink(module="logging", function="Logger.debug", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION),
-    TaintSink(module="logging", function="Logger.info", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION),
-    TaintSink(module="logging", function="Logger.warning", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION),
-    TaintSink(module="logging", function="Logger.error", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION),
-    TaintSink(module="logging", function="Logger.critical", vulnerable_parameters=(0,),
-              vulnerability_class=VulnerabilityClass.LOG_INJECTION),
-)
-
-
 
 def get_all_sinks() -> tuple[TaintSink, ...]:
-    """Get all defined taint sinks."""
     return (
-        *SQL_SINKS,
-        *RCE_SINKS,
-        *SSTI_SINKS,
-        *XSS_SINKS,
-        *SSRF_SINKS,
-        *DESERIALIZE_SINKS,
-        *PATH_TRAVERSAL_SINKS,
-        *LDAP_INJECTION_SINKS,
-        *HEADER_INJECTION_SINKS,
-        *XXEIS_SINKS,
-        *XPATH_INJECTION_SINKS,
-        *LOG_INJECTION_SINKS,
+        *SQL_SINKS, *RCE_SINKS, *SSTI_SINKS, *XSS_SINKS, *SSRF_SINKS,
+        *DESERIALIZE_SINKS, *PATH_TRAVERSAL_SINKS, *LDAP_INJECTION_SINKS,
+        *HEADER_INJECTION_SINKS, *XXE_SINKS,
     )
 
 
 def create_default_registry() -> SinkRegistry:
-    """Create a registry with all default sinks registered."""
     registry = SinkRegistry()
     registry.register_all(get_all_sinks())
     return registry
