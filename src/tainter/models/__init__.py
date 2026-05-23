@@ -33,6 +33,10 @@ from tainter.models.lang.python.sanitizers import (
 )
 
 __all__ = [
+    # Registry classes
+    "SourceRegistry",
+    "SinkRegistry",
+    "SanitizerRegistry",
     # Source collections
     "FLASK_SOURCES",
     "DJANGO_SOURCES",
@@ -40,7 +44,6 @@ __all__ = [
     "CLI_SOURCES",
     "BUILTIN_SOURCES",
     "get_all_sources",
-    "SourceRegistry",
     # Sink collections
     "SQL_SINKS",
     "RCE_SINKS",
@@ -49,10 +52,8 @@ __all__ = [
     "DESERIALIZE_SINKS",
     "PATH_TRAVERSAL_SINKS",
     "get_all_sinks",
-    "SinkRegistry",
     # Sanitizer collections
     "SQL_SANITIZERS",
     "GENERAL_SANITIZERS",
     "get_all_sanitizers",
-    "SanitizerRegistry",
 ]

@@ -37,6 +37,9 @@ DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset({
     ".vscode",
     # Node (in case of mixed projects)
     "node_modules",
+    # Java build output
+    "target",
+    ".gradle",
     # Tainter agent folder
     ".agent",
 })
@@ -47,7 +50,7 @@ DEFAULT_IGNORE_FILES: frozenset[str] = frozenset({
     "conftest.py",  # pytest specific
 })
 
-# Default source file extensions
+# Default source file extensions to scan
 DEFAULT_SOURCE_EXTENSIONS: tuple[str, ...] = (".py", ".java", ".js", ".go")
 
 # Maximum number of files to process (safety limit)
@@ -57,11 +60,11 @@ MAX_FILES_DEFAULT: int = 10000
 @dataclass
 class ProjectFiles:
     """
-    Collection of source files found in a project.
+    Collection of Python files found in a project.
     
     Attributes:
         root: The project root directory
-        files: List of source file paths (absolute)
+        files: List of Python file paths (absolute)
         ignored_dirs: Directories that were skipped
         error_paths: Paths that caused errors during discovery
     """
@@ -73,7 +76,7 @@ class ProjectFiles:
     
     @property
     def file_count(self) -> int:
-        """Number of source files found."""
+        """Number of Python files found."""
         return len(self.files)
     
     def relative_path(self, file: Path) -> Path:
@@ -120,11 +123,8 @@ def find_source_files(
     follow_symlinks: bool = False,
 ) -> ProjectFiles:
     """
-    Find all source files in a project directory.
-    
-    Recursively scans the project directory for supported file extensions while respecting
-    ignore patterns. Includes safety limits to prevent resource exhaustion.
-    
+    Find all source files with given extensions in a project directory.
+
     Args:
         project_path: Root directory to scan
         file_extensions: File suffixes to include (e.g., (".py", ".java"))
@@ -132,82 +132,72 @@ def find_source_files(
         ignore_files: Additional files to ignore (merged with defaults)
         max_files: Maximum number of files to return (safety limit)
         follow_symlinks: Whether to follow symbolic links (disabled by default for security)
-        
+
     Returns:
         ProjectFiles containing all discovered source files
-        
+
     Raises:
         ValueError: If project_path doesn't exist or isn't a directory
     """
     root = Path(project_path).resolve()
-    
+
     if not root.exists():
         raise ValueError(f"Project path does not exist: {root}")
     if not root.is_dir():
         raise ValueError(f"Project path is not a directory: {root}")
-    
-    # Merge ignore patterns
+
     all_ignore_dirs = DEFAULT_IGNORE_DIRS
     if ignore_dirs:
         all_ignore_dirs = all_ignore_dirs | ignore_dirs
-    
+
     all_ignore_files = DEFAULT_IGNORE_FILES
     if ignore_files:
         all_ignore_files = all_ignore_files | ignore_files
-    
+
     result = ProjectFiles(root=root)
     file_count = 0
-    
+
     def scan_directory(current_dir: Path) -> None:
-        """Recursively scan a directory for source files."""
         nonlocal file_count
-        
+
         if file_count >= max_files:
             return
-        
+
         try:
-            # Use scandir for efficiency
             with os.scandir(current_dir) as entries:
                 dirs_to_recurse: list[Path] = []
-                
+
                 for entry in entries:
                     if file_count >= max_files:
                         return
-                    
+
                     try:
-                        # Skip symlinks if not following them (security measure)
                         if entry.is_symlink() and not follow_symlinks:
                             continue
-                        
+
                         if entry.is_dir(follow_symlinks=follow_symlinks):
-                            # Check if we should skip this directory
                             if should_ignore_dir(entry.name, all_ignore_dirs):
                                 result.ignored_dirs.append(Path(entry.path))
                             else:
                                 dirs_to_recurse.append(Path(entry.path))
-                        
+
                         elif entry.is_file(follow_symlinks=follow_symlinks):
-                            # Check for supported source files
                             if entry.name.endswith(file_extensions):
                                 if entry.name not in all_ignore_files:
                                     result.files.append(Path(entry.path))
                                     file_count += 1
-                    
+
                     except (OSError, PermissionError) as e:
                         result.error_paths.append((Path(entry.path), str(e)))
-                
-                # Recurse into subdirectories
+
                 for subdir in dirs_to_recurse:
                     scan_directory(subdir)
-        
+
         except (OSError, PermissionError) as e:
             result.error_paths.append((current_dir, str(e)))
-    
-    scan_directory(root)
-    
-    # Sort files for consistent ordering
-    result.files.sort()
 
+    scan_directory(root)
+    result.files.sort()
     return result
 
 
@@ -218,9 +208,7 @@ def find_python_files(
     max_files: int = MAX_FILES_DEFAULT,
     follow_symlinks: bool = False,
 ) -> ProjectFiles:
-    """
-    Backward-compatible helper for Python-only discovery.
-    """
+    """Backward-compatible helper for Python-only file discovery."""
     return find_source_files(
         project_path=project_path,
         file_extensions=(".py",),

@@ -2,7 +2,7 @@
 Java taint sink definitions.
 
 Sinks are dangerous operations where tainted data can cause harm.
-Covers JDBC, command execution, file I/O, XML parsing, and more.
+Covers JDBC, Spring Data, command execution, file I/O, XML parsing, and more.
 """
 
 from tainter.core.types import TaintSink, VulnerabilityClass
@@ -42,6 +42,89 @@ JAVA_SQL_SINKS: tuple[TaintSink, ...] = (
         vulnerability_class=VulnerabilityClass.SQLI,
         description="JDBC nativeSQL with tainted input",
     ),
+    # Spring JDBC
+    TaintSink(
+        module="org.springframework.jdbc.core", function="JdbcTemplate.query",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Spring JdbcTemplate.query with tainted SQL",
+    ),
+    TaintSink(
+        module="org.springframework.jdbc.core", function="JdbcTemplate.queryForObject",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Spring JdbcTemplate.queryForObject with tainted SQL",
+    ),
+    TaintSink(
+        module="org.springframework.jdbc.core", function="JdbcTemplate.queryForList",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Spring JdbcTemplate.queryForList with tainted SQL",
+    ),
+    TaintSink(
+        module="org.springframework.jdbc.core", function="JdbcTemplate.execute",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Spring JdbcTemplate.execute with tainted SQL",
+    ),
+    TaintSink(
+        module="org.springframework.jdbc.core", function="JdbcTemplate.update",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Spring JdbcTemplate.update with tainted SQL",
+    ),
+    TaintSink(
+        module="org.springframework.jdbc.core.namedparam",
+        function="NamedParameterJdbcTemplate.query",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Spring NamedParameterJdbcTemplate.query with tainted SQL",
+    ),
+    TaintSink(
+        module="org.springframework.jdbc.core.namedparam",
+        function="NamedParameterJdbcTemplate.update",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Spring NamedParameterJdbcTemplate.update with tainted SQL",
+    ),
+    # JPA native queries
+    TaintSink(
+        module="javax.persistence", function="EntityManager.createNativeQuery",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="JPA native query with tainted SQL",
+    ),
+    TaintSink(
+        module="javax.persistence", function="EntityManager.createQuery",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="JPA JPQL query with tainted string (use parameterized queries)",
+    ),
+    TaintSink(
+        module="jakarta.persistence", function="EntityManager.createNativeQuery",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Jakarta JPA native query with tainted SQL",
+    ),
+    # Hibernate
+    TaintSink(
+        module="org.hibernate", function="Session.createQuery",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Hibernate HQL query with tainted string",
+    ),
+    TaintSink(
+        module="org.hibernate", function="Session.createNativeQuery",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Hibernate native query with tainted SQL",
+    ),
+    TaintSink(
+        module="org.hibernate", function="Session.createSQLQuery",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SQLI,
+        description="Hibernate SQL query with tainted string",
+    ),
 )
 
 # --- Remote Code Execution ---
@@ -65,6 +148,18 @@ JAVA_RCE_SINKS: tuple[TaintSink, ...] = (
         vulnerability_class=VulnerabilityClass.RCE,
         description="ScriptEngine.eval code execution",
     ),
+    TaintSink(
+        module="groovy.lang", function="GroovyShell.evaluate",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.RCE,
+        description="Groovy shell evaluation",
+    ),
+    TaintSink(
+        module="bsh", function="Interpreter.eval",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.RCE,
+        description="BeanShell interpreter evaluation",
+    ),
 )
 
 # --- Server-Side Request Forgery ---
@@ -86,13 +181,57 @@ JAVA_SSRF_SINKS: tuple[TaintSink, ...] = (
         module="java.net.http", function="HttpClient.send",
         vulnerable_parameters=(0,),
         vulnerability_class=VulnerabilityClass.SSRF,
-        description="HttpClient request with tainted URL",
+        description="Java HttpClient request with tainted URL",
     ),
     TaintSink(
         module="org.apache.http.client", function="HttpClient.execute",
         vulnerable_parameters=(0,),
         vulnerability_class=VulnerabilityClass.SSRF,
         description="Apache HttpClient with tainted URL",
+    ),
+    # Spring WebClient (reactive)
+    TaintSink(
+        module="org.springframework.web.reactive.function.client", function="WebClient.get",
+        vulnerable_parameters=(),
+        vulnerability_class=VulnerabilityClass.SSRF,
+        description="Spring WebClient GET request",
+    ),
+    TaintSink(
+        module="org.springframework.web.reactive.function.client", function="WebClient.post",
+        vulnerable_parameters=(),
+        vulnerability_class=VulnerabilityClass.SSRF,
+        description="Spring WebClient POST request",
+    ),
+    TaintSink(
+        module="org.springframework.web.reactive.function.client", function="UriSpec.uri",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SSRF,
+        description="Spring WebClient URI with tainted value",
+    ),
+    # Spring RestTemplate
+    TaintSink(
+        module="org.springframework.web.client", function="RestTemplate.getForObject",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SSRF,
+        description="Spring RestTemplate GET with tainted URL",
+    ),
+    TaintSink(
+        module="org.springframework.web.client", function="RestTemplate.postForObject",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SSRF,
+        description="Spring RestTemplate POST with tainted URL",
+    ),
+    TaintSink(
+        module="org.springframework.web.client", function="RestTemplate.exchange",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SSRF,
+        description="Spring RestTemplate.exchange with tainted URL",
+    ),
+    TaintSink(
+        module="org.springframework.web.client", function="RestTemplate.execute",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SSRF,
+        description="Spring RestTemplate.execute with tainted URL",
     ),
 )
 
@@ -141,6 +280,24 @@ JAVA_PATH_TRAVERSAL_SINKS: tuple[TaintSink, ...] = (
         vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL,
         description="Files.readAllBytes with tainted path",
     ),
+    TaintSink(
+        module="java.nio.file", function="Files.newInputStream",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL,
+        description="Files.newInputStream with tainted path",
+    ),
+    TaintSink(
+        module="java.nio.file", function="Files.write",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL,
+        description="Files.write with tainted path",
+    ),
+    TaintSink(
+        module="java.nio.file", function="Files.delete",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.PATH_TRAVERSAL,
+        description="Files.delete with tainted path",
+    ),
 )
 
 # --- Cross-Site Scripting ---
@@ -170,6 +327,12 @@ JAVA_XSS_SINKS: tuple[TaintSink, ...] = (
         vulnerability_class=VulnerabilityClass.XSS,
         description="PrintWriter.write with tainted data",
     ),
+    TaintSink(
+        module="javax.servlet", function="ServletOutputStream.print",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.XSS,
+        description="ServletOutputStream.print with tainted data",
+    ),
 )
 
 # --- Unsafe Deserialization ---
@@ -192,6 +355,12 @@ JAVA_DESERIALIZE_SINKS: tuple[TaintSink, ...] = (
         vulnerable_parameters=(0,),
         vulnerability_class=VulnerabilityClass.DESERIALIZE,
         description="Gson.fromJson with tainted input",
+    ),
+    TaintSink(
+        module="org.yaml.snakeyaml", function="Yaml.load",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.DESERIALIZE,
+        description="SnakeYAML unsafe load with tainted input",
     ),
 )
 
@@ -216,6 +385,12 @@ JAVA_XXE_SINKS: tuple[TaintSink, ...] = (
         vulnerability_class=VulnerabilityClass.XXE,
         description="TransformerFactory with tainted XSLT",
     ),
+    TaintSink(
+        module="javax.xml.stream", function="XMLInputFactory.createXMLStreamReader",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.XXE,
+        description="XMLInputFactory stream reader with tainted input",
+    ),
 )
 
 # --- LDAP Injection ---
@@ -227,9 +402,15 @@ JAVA_LDAP_SINKS: tuple[TaintSink, ...] = (
         vulnerability_class=VulnerabilityClass.LDAP_INJECTION,
         description="LDAP search with tainted filter",
     ),
+    TaintSink(
+        module="javax.naming.directory", function="InitialDirContext.search",
+        vulnerable_parameters=(1,),
+        vulnerability_class=VulnerabilityClass.LDAP_INJECTION,
+        description="LDAP InitialDirContext search with tainted filter",
+    ),
 )
 
-# --- SSTI ---
+# --- Server-Side Template Injection ---
 
 JAVA_SSTI_SINKS: tuple[TaintSink, ...] = (
     TaintSink(
@@ -239,10 +420,35 @@ JAVA_SSTI_SINKS: tuple[TaintSink, ...] = (
         description="FreeMarker template from tainted input",
     ),
     TaintSink(
+        module="freemarker.template", function="Configuration.getTemplate",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SSTI,
+        description="FreeMarker Configuration.getTemplate with tainted name",
+    ),
+    TaintSink(
         module="org.apache.velocity", function="Velocity.evaluate",
         vulnerable_parameters=(2,),
         vulnerability_class=VulnerabilityClass.SSTI,
         description="Velocity template evaluation with tainted input",
+    ),
+    TaintSink(
+        module="org.apache.velocity.app", function="VelocityEngine.evaluate",
+        vulnerable_parameters=(2,),
+        vulnerability_class=VulnerabilityClass.SSTI,
+        description="VelocityEngine evaluation with tainted input",
+    ),
+    # Thymeleaf
+    TaintSink(
+        module="org.thymeleaf", function="TemplateEngine.process",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SSTI,
+        description="Thymeleaf TemplateEngine.process with tainted template name",
+    ),
+    TaintSink(
+        module="org.thymeleaf.spring6", function="SpringTemplateEngine.process",
+        vulnerable_parameters=(0,),
+        vulnerability_class=VulnerabilityClass.SSTI,
+        description="Spring Thymeleaf SpringTemplateEngine.process with tainted template name",
     ),
 )
 

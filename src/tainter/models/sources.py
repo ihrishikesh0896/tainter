@@ -1,27 +1,32 @@
-"""Python taint sources — re-exports from lang/python/sources."""
+"""
+Taint source definitions — backward-compatible re-export.
 
+Content lives in models/lang/python/sources.py.
+Registry classes live in models/registry.py.
+"""
+
+from tainter.models.registry import SourceRegistry
 from tainter.models.lang.python.sources import (
     FLASK_SOURCES,
     DJANGO_SOURCES,
     FASTAPI_SOURCES,
-    TORNADO_SOURCES,
     AIOHTTP_SOURCES,
+    TORNADO_SOURCES,
     CLI_SOURCES,
     BUILTIN_SOURCES,
     get_all_sources,
     create_default_registry,
 )
-from tainter.models.registry import SourceRegistry
 
 __all__ = [
+    "SourceRegistry",
     "FLASK_SOURCES",
     "DJANGO_SOURCES",
     "FASTAPI_SOURCES",
-    "TORNADO_SOURCES",
     "AIOHTTP_SOURCES",
+    "TORNADO_SOURCES",
     "CLI_SOURCES",
     "BUILTIN_SOURCES",
     "get_all_sources",
     "create_default_registry",
-    "SourceRegistry",
 ]

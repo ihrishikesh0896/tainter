@@ -7,30 +7,31 @@ from tainter.models.lang.python.sources import (
     DJANGO_SOURCES,
     FASTAPI_SOURCES,
     FLASK_SOURCES,
-    SourceRegistry,
     TORNADO_SOURCES,
     create_default_registry as create_source_registry,
     get_all_sources,
 )
 from tainter.models.lang.python.sinks import (
     DESERIALIZE_SINKS,
+    HEADER_INJECTION_SINKS,
+    LDAP_INJECTION_SINKS,
     PATH_TRAVERSAL_SINKS,
     RCE_SINKS,
     SQL_SINKS,
     SSRF_SINKS,
     SSTI_SINKS,
-    SinkRegistry,
     XSS_SINKS,
+    XXE_SINKS,
     create_default_registry as create_sink_registry,
     get_all_sinks,
 )
 from tainter.models.lang.python.sanitizers import (
     GENERAL_SANITIZERS,
     SQL_SANITIZERS,
-    SanitizerRegistry,
     create_default_registry as create_sanitizer_registry,
     get_all_sanitizers,
 )
+from tainter.models.registry import SanitizerRegistry, SinkRegistry, SourceRegistry
 
 __all__ = [
     "AIOHTTP_SOURCES",
@@ -39,18 +40,21 @@ __all__ = [
     "DJANGO_SOURCES",
     "FASTAPI_SOURCES",
     "FLASK_SOURCES",
-    "SourceRegistry",
     "TORNADO_SOURCES",
+    "SourceRegistry",
     "create_source_registry",
     "get_all_sources",
     "DESERIALIZE_SINKS",
+    "HEADER_INJECTION_SINKS",
+    "LDAP_INJECTION_SINKS",
     "PATH_TRAVERSAL_SINKS",
     "RCE_SINKS",
     "SQL_SINKS",
     "SSRF_SINKS",
     "SSTI_SINKS",
-    "SinkRegistry",
     "XSS_SINKS",
+    "XXE_SINKS",
+    "SinkRegistry",
     "create_sink_registry",
     "get_all_sinks",
     "GENERAL_SANITIZERS",
@@ -59,4 +63,3 @@ __all__ = [
     "create_sanitizer_registry",
     "get_all_sanitizers",
 ]
-

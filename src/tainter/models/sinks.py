@@ -1,5 +1,11 @@
-"""Python taint sinks — re-exports from lang/python/sinks."""
+"""
+Taint sink definitions — backward-compatible re-export.
 
+Content lives in models/lang/python/sinks.py.
+Registry classes live in models/registry.py.
+"""
+
+from tainter.models.registry import SinkRegistry
 from tainter.models.lang.python.sinks import (
     SQL_SINKS,
     RCE_SINKS,
@@ -10,15 +16,16 @@ from tainter.models.lang.python.sinks import (
     PATH_TRAVERSAL_SINKS,
     LDAP_INJECTION_SINKS,
     HEADER_INJECTION_SINKS,
-    XXEIS_SINKS,
-    XPATH_INJECTION_SINKS,
-    LOG_INJECTION_SINKS,
+    XXE_SINKS,
     get_all_sinks,
     create_default_registry,
 )
-from tainter.models.registry import SinkRegistry
+
+# Keep old name alias for any code that used XXEIS_SINKS
+XXEIS_SINKS = XXE_SINKS
 
 __all__ = [
+    "SinkRegistry",
     "SQL_SINKS",
     "RCE_SINKS",
     "SSTI_SINKS",
@@ -28,10 +35,8 @@ __all__ = [
     "PATH_TRAVERSAL_SINKS",
     "LDAP_INJECTION_SINKS",
     "HEADER_INJECTION_SINKS",
+    "XXE_SINKS",
     "XXEIS_SINKS",
-    "XPATH_INJECTION_SINKS",
-    "LOG_INJECTION_SINKS",
     "get_all_sinks",
     "create_default_registry",
-    "SinkRegistry",
 ]
